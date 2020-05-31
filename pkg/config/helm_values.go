@@ -69,7 +69,6 @@ type EnabledConfig struct {
 
 type HelmValuesConfig struct {
 	ExposeController      *ExposeController                  `json:"expose,omitempty"`
-	Jenkins               JenkinsValuesConfig                `json:"jenkins,omitempty"`
 	Prow                  ProwValuesConfig                   `json:"prow,omitempty"`
 	PipelineSecrets       JenkinsPipelineSecretsValuesConfig `json:"PipelineSecrets,omitempty"`
 	ControllerBuild       *EnabledConfig                     `json:"controllerbuild,omitempty"`

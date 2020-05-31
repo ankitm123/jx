@@ -184,72 +184,12 @@ mysecrets.yaml
 This repository contains the source code for the Jenkins X Development Environment so that it can be managed via GitOps.
 `
 
-	devGitOpsJenkinsfile = `pipeline {
-  agent {
-    label "jenkins-jx-base"
-  }
-  environment {
-    DEPLOY_NAMESPACE = "%s"
-  }
-  stages {
-    stage('Validate Environment') {
-      steps {
-        container('jx-base') {
-          dir('env') {
-            sh 'jx step helm build'
-          }
-        }
-      }
-    }
-    stage('Update Environment') {
-      when {
-        branch 'master'
-      }
-      steps {
-        container('jx-base') {
-          dir('env') {
-            sh 'jx step env apply'
-          }
-        }
-      }
-    }
-  }
-}
-`
-
-	devGitOpsJenkinsfileProw = `pipeline {
-  agent any
-  environment {
-    DEPLOY_NAMESPACE = "%s"
-  }
-  stages {
-    stage('Validate Environment') {
-      steps {
-        dir('env') {
-          sh 'jx step helm build'
-        }
-      }
-    }
-    stage('Update Environment') {
-      when {
-        branch 'master'
-      }
-      steps {
-        dir('env') {
-          sh 'jx step env apply'
-        }
-      }
-    }
-  }
-}
-`
 	longTermStorageFlagName = "long-term-storage"
 	ltsBucketFlagName       = "lts-bucket"
 	kanikoFlagName          = "kaniko"
 	namespaceFlagName       = "namespace"
 	tektonFlagName          = "tekton"
 	prowFlagName            = "prow"
-	staticJenkinsFlagName   = "static-jenkins"
 	gitOpsFlagName          = "gitops"
 )
 
@@ -388,7 +328,6 @@ func (options *InstallOptions) AddInstallFlags(cmd *cobra.Command, includesInit 
 	cmd.Flags().StringVarP(&flags.BuildPackName, "buildpack", "", "", "The name of the build pack to use for the Team")
 	cmd.Flags().BoolVarP(&flags.Kaniko, kanikoFlagName, "", false, "Use Kaniko for building docker images")
 	cmd.Flags().BoolVarP(&flags.NextGeneration, "ng", "", false, "Use the Next Generation Jenkins X features like Prow, Tekton, No Tiller, Vault, Dev GitOps")
-	cmd.Flags().BoolVarP(&flags.StaticJenkins, staticJenkinsFlagName, "", false, "Install a static Jenkins master to use as the pipeline engine. Note this functionality is deprecated in favour of running serverless Tekton builds")
 	cmd.Flags().BoolVarP(&flags.LongTermStorage, longTermStorageFlagName, "", false, "Enable the Long Term Storage option to save logs and other assets into a GCS bucket (supported only for GKE)")
 	cmd.Flags().StringVarP(&flags.LongTermStorageBucketName, ltsBucketFlagName, "", "", "The bucket to use for Long Term Storage. If the bucket doesn't exist, an attempt will be made to create it, otherwise random naming will be used")
 	cmd.Flags().StringVar(&options.ConfigFile, "config-file", "", "Configuration file used for installation")
@@ -410,7 +349,6 @@ func bindInstallConfigToFlags(cmd *cobra.Command) {
 	_ = viper.BindPFlag(installConfigKey(prowFlagName), cmd.Flags().Lookup(prowFlagName))
 	_ = viper.BindPFlag(installConfigKey(gitOpsFlagName), cmd.Flags().Lookup(gitOpsFlagName))
 	_ = viper.BindPFlag(installConfigKey("next-generation"), cmd.Flags().Lookup("ng"))
-	_ = viper.BindPFlag(installConfigKey(staticJenkinsFlagName), cmd.Flags().Lookup(staticJenkinsFlagName))
 }
 
 func (flags *InstallFlags) AddCloudEnvOptions(cmd *cobra.Command) {
@@ -424,10 +362,6 @@ func (flags *InstallFlags) AddCloudEnvOptions(cmd *cobra.Command) {
 func (options *InstallOptions) CheckFlags() error {
 	log.Logger().Debug("checking installation flags")
 	flags := &options.Flags
-
-	if flags.StaticJenkins {
-		return fmt.Errorf("option '--static-jenkins' has been removed")
-	}
 
 	if flags.Prow {
 		flags.Tekton = true
@@ -1213,8 +1147,6 @@ func (options *InstallOptions) configureHelmValues(namespace string) error {
 
 	isProw := options.Flags.Prow
 	if isProw {
-		enableJenkins := false
-		helmConfig.Jenkins.Enabled = &enableJenkins
 		helmConfig.ControllerBuild = &config.EnabledConfig{true}
 		helmConfig.ControllerWorkflow = &config.EnabledConfig{false}
 		if options.Flags.Tekton && options.Flags.Provider == cloud.GKE {
